@@ -1,18 +1,8 @@
 {
     "id": "irrational-lattice",
     "title": "Irrational Lattice",
-    "description": "A new primitive: deterministic, algebraic “colored noise” for lattices. Coordinates in ℚ(√D) deform ℤᵈ and snap back via a nearest-lattice map — provably aperiodic, spectrally tunable, integer-arithmetic clean.",
-    "tags": [
-        "quadratic-fields",
-        "aperiodic-order",
-        "quasicrystals",
-        "lattices",
-        "colored-noise",
-        "exact-arithmetic",
-        "moire",
-        "procedural-textures"
-    ],
-    "category": "labs",
+    "pitch": "A new primitive: deterministic, algebraic “colored noise” for lattices. Coordinates in ℚ(√D) deform ℤᵈ and snap back via a nearest-lattice map — provably aperiodic, spectrally tunable, integer-arithmetic clean.",
+    "category": "lab",
     "href": "index.html",
     "readme": "README.md",
     "video": "/videos/Irrational_Lattice.mp4",
