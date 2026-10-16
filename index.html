@@ -98,14 +98,44 @@
         </div>
 
         <div class="control">
+           <label for="engine">Field engine</label>
+           <select id="engine">
+             <option value="exact" selected>Exact Z[&radic;D] (Beatty / cut-and-project)</option>
+             <option value="trig">Smooth trig preview (floating-point)</option>
+           </select>
+         </div>
+         <div class="control">
           <label for="mode">Field mode</label>
           <select id="mode">
-            <option value="magnitude">|&eta;(x)|</option>
-            <option value="rational">Rational part |a(x)|</option>
-            <option value="irrational">Irrational part |b(x)|&radic;D</option>
-            <option value="snapped">Snap displacement</option>
+             <optgroup label="Algebraic Field">
+               <option value="magnitude">|&eta;(x)|</option>
+               <option value="rational">Rational part |a(x)|</option>
+               <option value="irrational">Irrational part |b(x)|&radic;D</option>
+               <option value="conjugate">Galois conjugate |&eta;&#772;(x)| = |a(x) &minus; b(x)&radic;D|</option>
+               <option value="snapped">Snap displacement</option>
+             </optgroup>
+             <optgroup label="Algebraic &amp; Quasicrystal Fractals">
+               <option value="fractal:snap_julia">Fractal: Snap Julia Basins</option>
+               <option value="fractal:galois_carpet">Fractal: Galois Conjugate Carpet</option>
+               <option value="fractal:beatty_weierstrass">Fractal: Metallic Weierstrass&ndash;Beatty</option>
+               <option value="fractal:diophantine_flame">Fractal: Diophantine Resonance Flame</option>
+               <option value="fractal:horizon_catastrophe">Fractal: Precision-Horizon Catastrophe</option>
+               <option value="fractal:quasicrystal_attractor">Fractal: Quasicrystal Kick Attractor</option>
+             </optgroup>
           </select>
         </div>
+         <div class="control" id="fractalIterControl">
+           <label>Fractal iterations: <output id="fractalIterOut">14</output></label>
+           <input type="range" id="fractalIter" min="2" max="40" value="14" step="1" />
+           <button class="sweep-btn" data-target="fractalIter" title="Sweep fractal iterations">⟲ sweep</button>
+         </div>
+         <div class="control">
+           <label for="normMode">Normalization</label>
+           <select id="normMode">
+             <option value="minmax" selected>Viewport min&ndash;max</option>
+             <option value="analytic">Analytic bound (intrinsic scale)</option>
+           </select>
+         </div>
 
         <div class="control">
           <label>K frequencies: <output id="kOut">3</output></label>
@@ -135,7 +165,7 @@
           </div>
         </div>
         <div class="control">
-          <label>Upsample (grid sampling): <output id="upsampleOut">1</output>×</label>
+           <label>Supersample (anti-alias): <output id="upsampleOut">1</output>&times;</label>
           <input type="range" id="upsample" min="1" max="8" value="1" step="1" />
         </div>
         <div class="control">
@@ -185,6 +215,7 @@
             <option value="none">none (use 1D map)</option>
             <option value="snap" selected>snap distance ⊗ field</option>
             <option value="rational_irrational">rational ⊗ irrational</option>
+             <option value="conj_mag">Galois conjugate ⊗ field</option>
             <option value="xy_phase">xy phase ⊗ field</option>
           </select>
         </div>

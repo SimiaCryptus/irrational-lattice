@@ -108,12 +108,14 @@ export function topAutocorrVectors(data, width, zoom, maxN = 64, height = width)
     console.groupEnd();
     return [];
   }
-  const re = new Float64Array(N * N);
-  const im = new Float64Array(N * N);
+   // Zero-pad to M = 2*N so Wiener-Khinchin computes linear (non-circular)
+   // autocorrelation rather than wrapping opposite edges (Part II §8).
+   const M = N * 2;
+   const samples = new Float64Array(N * N);
+   const re = new Float64Array(M * M);
+   const im = new Float64Array(M * M);
 
-  // Downsample and remove mean (so DC doesn't dominate autocorrelation).
-  // Scale each axis independently and clamp the source indices so we never
-  // read past the (possibly non-square) field bounds.
+   // Block-average downsample and remove mean (so DC doesn't dominate).
   const scaleX = width / N;
   const scaleY = height / N;
   let mean = 0;
@@ -121,14 +123,25 @@ export function topAutocorrVectors(data, width, zoom, maxN = 64, height = width)
     dsMax = -Infinity;
   let nonFinite = 0;
   for (let y = 0; y < N; y++) {
+     const y0 = Math.floor(y * scaleY);
+     const y1 = Math.max(y0 + 1, Math.min(height, Math.floor((y + 1) * scaleY)));
     for (let x = 0; x < N; x++) {
-      const sx = Math.min(width - 1, Math.floor(x * scaleX));
-      const sy = Math.min(height - 1, Math.floor(y * scaleY));
-      const v = data[sy * width + sx];
+       const x0 = Math.floor(x * scaleX);
+       const x1 = Math.max(x0 + 1, Math.min(width, Math.floor((x + 1) * scaleX)));
+       let sum = 0,
+         cnt = 0;
+       for (let sy = y0; sy < y1; sy++) {
+         const rowOff = sy * width;
+         for (let sx = x0; sx < x1; sx++) {
+           sum += data[rowOff + sx];
+           cnt++;
+         }
+       }
+       const v = cnt > 0 ? sum / cnt : 0;
       if (!isFinite(v)) nonFinite++;
       if (v < dsMin) dsMin = v;
       if (v > dsMax) dsMax = v;
-      re[y * N + x] = v;
+       samples[y * N + x] = v;
       mean += v;
     }
   }
@@ -150,25 +163,31 @@ export function topAutocorrVectors(data, width, zoom, maxN = 64, height = width)
   if (nonFinite > 0) {
     console.warn('[autocorr]', nonFinite, 'non-finite samples in downsampled field');
   }
-  for (let i = 0; i < N * N; i++) re[i] -= mean;
+   // Place zero-mean samples into the top-left N x N quadrant of the M x M buffer.
+   for (let y = 0; y < N; y++) {
+     for (let x = 0; x < N; x++) {
+       re[y * M + x] = samples[y * N + x] - mean;
+     }
+   }
 
-  // Autocorrelation = IFFT( |FFT(x)|^2 ).
-  fft2d(re, im, N, false);
-  for (let i = 0; i < N * N; i++) {
+   // Linear autocorrelation = IFFT( |FFT(zero-padded x)|^2 ).
+   fft2d(re, im, M, false);
+   for (let i = 0; i < M * M; i++) {
     const p = re[i] * re[i] + im[i] * im[i];
     re[i] = p;
     im[i] = 0;
   }
-  fft2d(re, im, N, true);
-  // Normalize inverse transform.
-  for (let i = 0; i < N * N; i++) re[i] /= N * N;
+   fft2d(re, im, M, true);
+   // Normalize inverse transform by M*M and sample count N*N.
+   const norm = M * M * (N * N);
+   for (let i = 0; i < M * M; i++) re[i] /= norm;
   // Diagnostic: report the central (zero-lag) autocorrelation value, which
   // equals the field variance and should be the global maximum.
   {
     let acMin = Infinity,
       acMax = -Infinity,
       acNonFinite = 0;
-    for (let i = 0; i < N * N; i++) {
+     for (let i = 0; i < M * M; i++) {
       const v = re[i];
       if (!isFinite(v)) acNonFinite++;
       if (v < acMin) acMin = v;
@@ -182,14 +201,16 @@ export function topAutocorrVectors(data, width, zoom, maxN = 64, height = width)
     });
   }
 
-  // fftshift so zero-lag is centered.
+   // Extract central N x N lags [-N/2, N/2) from the M x M linear autocorrelation.
   const half = N / 2;
   const ac = new Float64Array(N * N);
   for (let y = 0; y < N; y++) {
     for (let x = 0; x < N; x++) {
-      const sx = (x + half) % N;
-      const sy = (y + half) % N;
-      ac[sy * N + sx] = re[y * N + x];
+       const lagX = x - half;
+       const lagY = y - half;
+       const mx = (lagX + M) % M;
+       const my = (lagY + M) % M;
+       ac[y * N + x] = re[my * M + mx];
     }
   }
 

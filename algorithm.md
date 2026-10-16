@@ -370,3 +370,45 @@ Put simply, the construction is **a field over $\mathbb{Z}[\sqrt D]$ that happen
 | spectrally tunable | yes | yes, via $1/k$ weights; extendable |
 
 The gaps in this table are not failures of the idea. Each row marks a place where the real numbers made a promise that only an algebraic number field can keep.
+---
+# Part III — Algebraic & Quasicrystalline Fractal Plots
+The structures in Parts I and II—the snap residual, the unused Galois conjugate $\bar\xi = a - b\sqrt D$, the continued-fraction convergents, and the discontinuous rounding seams—naturally generate fractal geometry when iterated or rescaled. Below are six domain-specific fractal constructions implemented in `fractals.js`.
+## 1. Iterated Snap Basin Boundaries ("Lattice Julia Set")
+The single-step snap map $T_\varepsilon(x) = x + \varepsilon\eta(x)$ followed by rounding $S(x) = \operatorname{round}(T_\varepsilon(x))$ is piecewise smooth with jump discontinuities along the half-integer pullbacks $T_\varepsilon^{-1}(\mathbb{Z}^2 + \tfrac12)$.
+Instead of rounding immediately, iterate the continuous-plus-quantized feedback loop:
+$$z_0 = x,\qquad z_{n+1} = z_n + \varepsilon\,\eta(z_n) - \gamma\big(z_n - \operatorname{round}(z_n)\big)$$
+where $\gamma \in (0,1]$ is a lattice-gravity parameter. Points eventually lock into a periodic orbit around a specific lattice site $L_\infty(x) \in \mathbb{Z}^2$.
+- **Primary scalar $v_1$:** Smoothed escape/locking time $n + \frac{\ln \tau}{\ln \|z_n - \operatorname{round}(z_n)\|}$, or the cumulative Galois norm accumulated along the trajectory.
+- **Secondary scalar $v_2$:** A spatial hash of the terminal lattice site $L_\infty(x) = (m, n)$, coloring each lattice site's basin of attraction distinctly. Because $\eta$ is incommensurate with $\mathbb{Z}^2$, every basin boundary is crumpled by all $K$ modes simultaneously, producing a quasicrystalline Julia set.
+## 2. Galois Conjugate Hofstadter Carpet (Minkowski Internal-Space IFS)
+In Part II §6 & §10, an element $\xi = a + b\sqrt D \in \mathbb{Q}(\sqrt D)$ has two embeddings:
+$$\sigma_+(\xi) = a + b\sqrt D \quad(\text{physical space}),\qquad \sigma_-(\xi) = a - b\sqrt D \quad(\text{internal / conjugate space}).$$
+And the field norm is $N_{K/\mathbb{Q}}(\xi) = a^2 - D b^2$.
+At each iteration $n = 1, \dots, M$:
+1. Evaluate $(a_x, b_x, a_y, b_y) = \eta(z_n)$.
+2. Compute the conjugate displacement $\bar r = (a_x - b_x\sqrt D,\ a_y - b_y\sqrt D)$ and the norm product $\mathcal{N}_n = (a_x^2 - D b_x^2) + (a_y^2 - D b_y^2)$.
+3. **Fold** into the fundamental domain using the conjugate while scaling by the fundamental unit $\varepsilon_D$ (or $\sqrt D$):
+   $$z_{n+1} = \sqrt D\,\big(\langle z_n + \varepsilon\, r(z_n)\rangle\big) + \bar r(z_n).$$
+4. Count how many iterations land inside the **quasicrystal acceptance window** $|\bar r_\bullet| < W_{\text{acc}}$ and have negative norm $\mathcal{N}_n < 0$ (hyperbolic sectors).
+The norm hyperbolas $a^2 - D b^2 = c$ slice through the multi-scale torus foldings, creating hyperbolic lacy carpets whose symmetries are governed by the unit group of $\mathbb{Z}[\sqrt D]$.
+## 3. Metallic Weierstrass–Beatty Cascade (Exact $\mathbb{Z}[\sqrt D]$ Sturmian Fractal)
+Addressing Part II §6 directly, this plot replaces $\sin/\cos$ with exact algebraic fractional parts and sums them over a geometric self-similar hierarchy of scales $\lambda_m = (\sqrt D)^m$:
+$$W(x) = \sum_{m=0}^{M-1} D^{-m H} \, \Psi\!\left( (\sqrt D)^m R_{m\theta}\, x \right)$$
+where $H \in (0,1)$ is the Hurst exponent, $R_{m\theta}$ rotates by the golden/plastic angle, and $\Psi$ is the exact Beatty sawtooth distance to the nearest half-integer seam:
+$$\Psi(u) = \Big|\,\big|\langle u_1\sqrt D\rangle\big| - \big|\langle u_2\varphi\rangle\big|\,\Big|.$$
+Because the discontinuities of $\langle t\rangle$ at integers propagate across all powers of $\sqrt D$, the graph of $W(x)$ has box-counting dimension $3 - H$ and exhibits exact inflation symmetry under $x \mapsto \sqrt D\, x$.
+## 4. Diophantine Resonance Flame (Continued-Fraction Arnold Tongues)
+Part II §10(d) notes that on a machine, "irrational" means "quantitatively far from small-denominator rationals." At each pixel $x$, form the local ratio of the irrational and rational field magnitudes:
+$$\omega_x = \frac{a_x(x)}{b_x(x)\sqrt D + \delta},\qquad \omega_y = \frac{a_y(x)}{b_y(x)\sqrt D + \delta}.$$
+Run the Euclidean / continued-fraction Gauss map $G(t) = \{1/t\}$ simultaneously on $(\omega_x, \omega_y)$ for $M$ steps, tracking the partial quotients $a_n = \lfloor 1/t_n \rfloor$:
+- **Lyapunov / Brjuno sum:** $\Lambda(x) = \sum_{n=1}^M \frac{\ln(a_n^{(x)} + a_n^{(y)})}{2^n}$.
+- **Denominator explosion:** where $\omega(x)$ crosses a low-order rational $p/q$, the Gauss map terminates early, burning dark **Arnold tongues** into a glowing web of badly-approximable noble numbers (where $a_n = 1$ or $2$ forever).
+## 5. Precision-Horizon Catastrophe Map (Float64 vs. Exact $\mathbb{Z}[\sqrt D]$ Divergence)
+A visual proof of Part II §3–4 ("rounding is not computable on $\mathbb{R}$"). For each pixel $x$, we simulate panning out to an extreme horizon $P = 2^B$ (for bit-depth $B \in [20, 53]$) and compare:
+1. The IEEE-754 float64 evaluation $\operatorname{round}\big((x + P) + \varepsilon\eta_{\text{float}}(x + P)\big) - P$.
+2. The exact `BigInt` algebraic sign-test evaluation in $\mathbb{Z}[\sqrt D]$ (using `isqrt(n²D)` from Part II §6).
+Sweeping $B$ from $1$ to $53$ across each pixel and summing the bit-depth at which the snap decision flips produces a **Moiré-Cantor catastrophe dust** along the snap seams—directly imaging the measure-zero set where IEEE-754 betrays the continuum.
+## 6. Strange Attractor Density of the Quasicrystal Kick Map
+Treat the displacement field as a symplectic-like kick map on the torus $[ -L, L )^2$:
+$$x_{n+1} = x_n + \varepsilon\, r(x_n),\qquad y_{n+1} = y_n + \varepsilon\, \bar r(x_{n+1})$$
+coupling the real embedding $r = a + b\sqrt D$ with the Galois conjugate $\bar r = a - b\sqrt D$. Accumulate a 2D histogram of $10^6$ orbit steps, coloring by local Lyapunov divergence $\ln \|\det D\Phi(x)\|$.

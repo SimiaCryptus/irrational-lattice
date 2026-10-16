@@ -1,10 +1,11 @@
 // Entry point: wires UI controls to the field generator and renderer.
 
 import { computeField } from './field.js';
+import { computeFractalField } from './fractals.js';
 import { renderField } from './render.js';
 import { computeFFT2D, renderFFT3D } from './fft.js';
 import { topAutocorrVectors } from './autocorr.js';
-import { wireRationalControls } from './rational.js';
+import { wireRationalControls, rationalApprox } from './rational.js';
 import { FieldAudio } from './audio.js';
 
 const canvas = document.getElementById('field');
@@ -17,7 +18,10 @@ const renderDims = { width: 256, height: 256 };
 
 const controls = {
   D: document.getElementById('D'),
+   engine: document.getElementById('engine'),
   mode: document.getElementById('mode'),
+   fractalIter: document.getElementById('fractalIter'),
+   normMode: document.getElementById('normMode'),
   K: document.getElementById('K'),
   alpha: document.getElementById('alpha'),
   eps: document.getElementById('eps'),
@@ -32,6 +36,7 @@ const controls = {
 
 const outputs = {
   K: document.getElementById('kOut'),
+   fractalIter: document.getElementById('fractalIterOut'),
   alpha: document.getElementById('alphaOut'),
   eps: document.getElementById('epsOut'),
   size: document.getElementById('sizeOut'),
@@ -80,16 +85,31 @@ function stateToHash() {
   if (restoringFromHash) return;
   const params = new URLSearchParams();
   for (const key of Object.keys(controls)) {
+     if (!controls[key]) continue;
     params.set(key, controls[key].value);
   }
   params.set('cycleSpeed', controls.cycle.value);
-  params.set('panX', view.panX.toFixed(3));
-  params.set('panY', view.panY.toFixed(3));
-  params.set('zoom', view.zoom.toFixed(5));
+   // Encode pan and zoom as exact rationals p/q so shared URLs reproduce
+   // nearest-lattice snap decisions bit-for-bit (Part II §11.6).
+   const pxR = rationalApprox(view.panX, 1000000);
+   const pyR = rationalApprox(view.panY, 1000000);
+   const zR = rationalApprox(view.zoom, 1000000);
+   params.set('panX', `${pxR.num}/${pxR.den}`);
+   params.set('panY', `${pyR.num}/${pyR.den}`);
+   params.set('zoom', `${zR.num}/${zR.den}`);
   params.set('offsetX', offset.x);
   params.set('offsetY', offset.y);
   // Replace (not push) so we don't spam browser history during drags.
   history.replaceState(null, '', '#' + params.toString());
+}
+function parseRationalParam(str, fallback = 0) {
+   if (!str) return fallback;
+   if (str.includes('/')) {
+     const [n, d] = str.split('/').map(Number);
+     if (isFinite(n) && isFinite(d) && d !== 0) return n / d;
+   }
+   const v = parseFloat(str);
+   return isFinite(v) ? v : fallback;
 }
 function hashToState() {
   const hash = window.location.hash.replace(/^#/, '');
@@ -97,11 +117,11 @@ function hashToState() {
   const params = new URLSearchParams(hash);
   restoringFromHash = true;
   for (const key of Object.keys(controls)) {
-    if (params.has(key)) controls[key].value = params.get(key);
+     if (controls[key] && params.has(key)) controls[key].value = params.get(key);
   }
-  if (params.has('panX')) view.panX = parseFloat(params.get('panX'));
-  if (params.has('panY')) view.panY = parseFloat(params.get('panY'));
-  if (params.has('zoom')) view.zoom = parseFloat(params.get('zoom'));
+   if (params.has('panX')) view.panX = parseRationalParam(params.get('panX'), 0);
+   if (params.has('panY')) view.panY = parseRationalParam(params.get('panY'), 0);
+   if (params.has('zoom')) view.zoom = parseRationalParam(params.get('zoom'), 1);
   if (params.has('offsetX')) offset.x = parseInt(params.get('offsetX'), 10);
   if (params.has('offsetY')) offset.y = parseInt(params.get('offsetY'), 10);
   restoringFromHash = false;
@@ -111,12 +131,22 @@ function hashToState() {
 function readOpts() {
   const size = parseInt(controls.size.value, 10);
   const upsample = parseInt(controls.upsample.value, 10) || 1;
+   const rawMode = controls.mode.value;
+   const isFractal = rawMode.startsWith('fractal:');
+   const fractalMode = isFractal ? rawMode.slice('fractal:'.length) : null;
+   const fractalIter = controls.fractalIter ? parseInt(controls.fractalIter.value, 10) : 14;
   return {
     D: parseInt(controls.D.value, 10),
+     engine: controls.engine ? controls.engine.value : 'exact',
     mode: controls.mode.value,
+     isFractal,
+     fractalMode,
+     fractalIter,
+     normMode: controls.normMode ? controls.normMode.value : 'minmax',
     K: parseInt(controls.K.value, 10),
     alphaScale: parseFloat(controls.alpha.value),
     epsilon: parseFloat(controls.eps.value),
+     eps: parseFloat(controls.eps.value),
     size,
     width: renderDims.width,
     height: renderDims.height,
@@ -135,6 +165,9 @@ function readOpts() {
 
 function updateOutputs(o) {
   outputs.K.textContent = o.K;
+   if (outputs.fractalIter) outputs.fractalIter.textContent = o.fractalIter;
+   const iterWrap = document.getElementById('fractalIterControl');
+   if (iterWrap) iterWrap.style.display = o.isFractal ? '' : 'none';
   outputs.alpha.textContent = o.alphaScale.toFixed(3);
   outputs.eps.textContent = o.epsilon.toFixed(2);
   outputs.size.textContent = o.size;
@@ -146,12 +179,16 @@ function updateOutputs(o) {
 }
 
 function updateStats(o, result, elapsed) {
+   const nyq = result.nyquistRatio ?? (o.alphaScale * o.zoom) / (o.upsample || 1);
+   const nyqWarn = nyq >= 1 ? ' (aliasing)' : '';
   statsEl.innerHTML = `
         <div><span>D</span><span>${o.D}</span></div>
         <div><span>&radic;D</span><span>${Math.sqrt(o.D).toFixed(6)}</span></div>
-        <div><span>min</span><span>${result.min.toFixed(4)}</span></div>
-        <div><span>max</span><span>${result.max.toFixed(4)}</span></div>
+         <div><span>engine</span><span>${o.engine}</span></div>
+         <div><span>min</span><span>${(result.rawMin ?? result.min).toFixed(4)}</span></div>
+         <div><span>max</span><span>${(result.rawMax ?? result.max).toFixed(4)}</span></div>
         <div><span>irr RMS</span><span>${result.irrRMS.toFixed(4)}</span></div>
+         <div><span>Nyquist &alpha;z/u</span><span>${nyq.toFixed(3)}${nyqWarn}</span></div>
         <div><span>sites</span><span>${o.width * o.height}</span></div>
        <div><span>zoom</span><span>${o.zoom.toFixed(3)}</span></div>
        <div><span>pan</span><span>${o.panX.toFixed(1)}, ${o.panY.toFixed(1)}</span></div>
@@ -165,6 +202,10 @@ function updateStats(o, result, elapsed) {
 let lastResult = null;
 let lastOpts = null;
 
+function evaluateSelectedField(opts) {
+   return opts.isFractal ? computeFractalField(opts) : computeField(opts);
+}
+
 let pending = null;
 function regenerate() {
   const opts = readOpts();
@@ -176,7 +217,7 @@ function regenerate() {
   if (pending) cancelAnimationFrame(pending);
   pending = requestAnimationFrame(() => {
     const t0 = performance.now();
-    const result = computeField(opts);
+     const result = evaluateSelectedField(opts);
     renderField(canvas, result, opts);
     const t1 = performance.now();
     updateStats(opts, result, t1 - t0);
@@ -767,7 +808,7 @@ function ensureFieldForAudio() {
   if (!lastResult || !lastOpts) {
     const opts = readOpts();
     updateOutputs(opts);
-    const result = computeField(opts);
+     const result = evaluateSelectedField(opts);
     renderField(canvas, result, opts);
     lastResult = result;
     lastOpts = opts;

@@ -53,7 +53,7 @@ The interface is built around a single, direct feedback loop: change the algebra
 - **The coefficients** — the amplitude assigned to each frequency; this is your equalizer for shaping the "color" of the noise (blue, pink, hyperuniform, and everything between).
 - **The amplitude $\varepsilon$** — how far points are allowed to wander before snapping. Small values keep the geometry tight against the grid; larger values make the moiré more dramatic.
 
-Because everything downstream of the $\sqrt{D}$ constant is integer arithmetic, the visualization updates cleanly and predictably — no floating-point drift, no per-pixel randomness, no seed to remember. The same parameters always give the same picture; the construction is fully reproducible by design.
+In the exact $\mathbb{Z}[\sqrt{D}]$ mode, all lattice evaluations and nearest-lattice snapping decisions are computed in exact integer arithmetic (`BigInt`) before final pixel display. In the smooth trigonometric preview mode, the field is deterministic per engine and approximates the ideal aperiodic limit with a floating-point period $\gtrsim 2^{50}$. In both modes there is no per-pixel randomness and no seed to remember: the same parameters always give the same picture, and URLs encode view coordinates as exact rationals so shared links reproduce snap boundaries faithfully.
 
 ---
 
@@ -110,3 +110,5 @@ A few directions I'm keen to explore, and would love feedback on:
 None of these are settled. If any of them resonates with your own work, I'd genuinely like to hear about it.
 
 More soon, I hope — and in the meantime, enjoy turning the knobs.
+
+- **The field engine** — switch between the **Exact $\mathbb{Z}[\sqrt{D}]$** engine (built from exact integer fractional parts $\lfloor n\sqrt{D}\rfloor$ using `BigInt` arithmetic and exact sign tests for snapping) and the **Smooth trig preview** (a floating-point sinusoidal counterpart whose computed period is $\gtrsim 2^{50}$).

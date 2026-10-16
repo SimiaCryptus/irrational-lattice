@@ -161,5 +161,7 @@ export const colormaps2d = {
   snap: (u, v, phase = 0) => hsv2rgb(u + phase, 0.85, clamp01(0.15 + 0.85 * v)),
   rational_irrational: (u, v, phase = 0) =>
     hsv2rgb(0.6 * u + 0.15 + phase, clamp01(0.4 + 0.6 * v), clamp01(0.25 + 0.75 * v)),
+   conj_mag: (u, v, phase = 0) =>
+     hsv2rgb(0.75 * u + 0.55 + phase, clamp01(0.5 + 0.5 * u), clamp01(0.15 + 0.85 * v)),
   xy_phase: (u, v, phase = 0) => hsv2rgb(u + phase, 0.7, clamp01(0.2 + 0.8 * v)),
 };

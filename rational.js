@@ -7,27 +7,42 @@
 
 /**
  * Best rational approximation p/q to x with q <= maxDen, via continued
- * fractions (Stern-Brocot / convergents). Returns { num, den, value }.
+  * fractions (convergents + best semiconvergent). Returns { num, den, value }.
  */
 export function rationalApprox(x, maxDen = 100) {
   if (!isFinite(x)) return { num: 1, den: 1, value: 1 };
   const sign = x < 0 ? -1 : 1;
-  x = Math.abs(x);
+   const absX = Math.abs(x);
+   let rem = absX;
 
   // Continued fraction expansion, tracking convergents.
   let h0 = 0,
     h1 = 1; // numerator convergents
   let k0 = 1,
     k1 = 0; // denominator convergents
-  let a = Math.floor(x);
-  let frac = x - a;
+   let a = Math.floor(rem);
+   let frac = rem - a;
   let bestNum = a,
     bestDen = 1;
 
   for (let i = 0; i < 64; i++) {
     const h2 = a * h1 + h0;
     const k2 = a * k1 + k0;
-    if (k2 > maxDen) break;
+     if (k2 > maxDen) {
+       // Check best semiconvergent with denominator <= maxDen.
+       if (k1 > 0) {
+         const m = Math.floor((maxDen - k0) / k1);
+         if (m >= 1) {
+           const sh = m * h1 + h0;
+           const sk = m * k1 + k0;
+           if (Math.abs(absX - sh / sk) < Math.abs(absX - bestNum / bestDen)) {
+             bestNum = sh;
+             bestDen = sk;
+           }
+         }
+       }
+       break;
+     }
     bestNum = h2;
     bestDen = k2;
     h0 = h1;

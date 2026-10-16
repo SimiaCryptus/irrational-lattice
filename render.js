@@ -25,8 +25,8 @@ export function renderField(canvas, fieldResult, opts) {
     const color2dFn = colormaps2d[cmap2d];
     const range2 = max2 - min2 || 1;
     for (let i = 0; i < data.length; i++) {
-      const v = (data[i] - min) / range;
-      const u = (chan2[i] - min2) / range2;
+       const v = Math.max(0, Math.min(1, (data[i] - min) / range));
+       const u = Math.max(0, Math.min(1, (chan2[i] - min2) / range2));
       const [r, g, b] = color2dFn(u, v, phase);
       const o = i * 4;
       img.data[o] = r;
@@ -36,7 +36,7 @@ export function renderField(canvas, fieldResult, opts) {
     }
   } else {
     for (let i = 0; i < data.length; i++) {
-      const t = (data[i] - min) / range;
+       const t = Math.max(0, Math.min(1, (data[i] - min) / range));
       const [r, g, b] = colorFn(t, phase);
       const o = i * 4;
       img.data[o] = r;

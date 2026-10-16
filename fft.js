@@ -57,17 +57,42 @@ export function computeFFT2D(data, width, maxN = 64, height = width) {
   const re = new Float64Array(N * N);
   const im = new Float64Array(N * N);
 
-  // Sample/average the source field down to N x N.
+   // Block-average the source field down to N x N (anti-aliased downsample)
+   // and compute the mean so DC can be removed before windowing.
   const scaleX = width / N;
   const scaleY = height / N;
+   let mean = 0;
   for (let y = 0; y < N; y++) {
+     const y0 = Math.floor(y * scaleY);
+     const y1 = Math.max(y0 + 1, Math.min(height, Math.floor((y + 1) * scaleY)));
     for (let x = 0; x < N; x++) {
-      // Nearest-block average for a smoother spectrum.
-      const sx = Math.min(width - 1, Math.floor(x * scaleX));
-      const sy = Math.min(height - 1, Math.floor(y * scaleY));
-      re[y * N + x] = data[sy * width + sx] || 0;
+       const x0 = Math.floor(x * scaleX);
+       const x1 = Math.max(x0 + 1, Math.min(width, Math.floor((x + 1) * scaleX)));
+       let sum = 0,
+         cnt = 0;
+       for (let sy = y0; sy < y1; sy++) {
+         const rowOff = sy * width;
+         for (let sx = x0; sx < x1; sx++) {
+           sum += data[rowOff + sx] || 0;
+           cnt++;
+         }
+       }
+       const v = cnt > 0 ? sum / cnt : 0;
+       re[y * N + x] = v;
+       mean += v;
     }
   }
+   mean /= N * N;
+   // Subtract mean and apply a separable 2D Hann window to suppress spectral
+   // leakage sidelobes (Part II §8).
+   const denom = N > 1 ? N - 1 : 1;
+   for (let y = 0; y < N; y++) {
+     const wy = 0.5 * (1 - Math.cos((2 * Math.PI * y) / denom));
+     for (let x = 0; x < N; x++) {
+       const wx = 0.5 * (1 - Math.cos((2 * Math.PI * x) / denom));
+       re[y * N + x] = (re[y * N + x] - mean) * wx * wy;
+     }
+   }
 
   // Rows.
   const rowRe = new Float64Array(N);
